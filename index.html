@@ -2,28 +2,29 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Bunker Tycoon 3D</title>
+<title>Bunker Tycoon 3D - Version Avancée</title>
 <style>
 body { margin:0; overflow:hidden; background:#222; font-family:Arial; }
 #ui { position:absolute; top:10px; left:10px; color:white; }
-button { margin:5px; padding:5px 10px; }
+#nextBlock { margin-bottom:10px; font-weight:bold; }
+button { padding:5px 10px; margin-top:5px; display:block; }
 </style>
 </head>
 <body>
 <div id="ui">
-  Argent: <span id="money">100</span><br>
-  <button onclick="build('dortoir')">Construire Dortoir (50$)</button>
-  <button onclick="build('atelier')">Construire Atelier (100$)</button>
-  <button onclick="build('reservoir')">Construire Réservoir (75$)</button>
+  Argent: <span id="money">200</span><br>
+  <div id="nextBlock">Prochain bloc: Dortoir</div>
+  <button onclick="placeBlock()">Poser le bloc</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script>
+// --- Scène 3D ---
 let scene = new THREE.Scene();
 scene.background = new THREE.Color(0x333333);
 
 let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(10,15,20);
+camera.position.set(15,20,25);
 camera.lookAt(0,0,0);
 
 let renderer = new THREE.WebGLRenderer({antialias:true});
@@ -44,73 +45,109 @@ let ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI/2;
 scene.add(ground);
 
-// Variables du jeu
-let money = 100;
-let buildings = [];
-let nextX = 0;
-let nextZ = 0;
+// --- Variables jeu ---
+let money = 200;
+document.getElementById('money').textContent = money;
 
-// Fonction construction
-function build(type){
-  let cost=0,color=0x00ff00;
-  if(type==='dortoir'){ cost=50;color=0x00ff00; }
-  if(type==='atelier'){ cost=100;color=0xffff00; }
-  if(type==='reservoir'){ cost=75;color=0x00ffff; }
-  if(money<cost) return alert("Pas assez d'argent !");
-  money-=cost;
+// Définition des blocs prédéfinis avec types, coûts, revenus et positions
+let predefinedBlocks = [
+  {type:'Dortoir', position:{x:0,y:1,z:0}, cost:50, income:1, color:0x00ff00, level:1},
+  {type:'Atelier', position:{x:0,y:1,z:3}, cost:100, income:2, color:0xffff00, level:1},
+  {type:'Réservoir', position:{x:3,y:1,z:0}, cost:75, income:1.5, color:0x00ffff, level:1},
+  {type:'Dortoir', position:{x:3,y:1,z:3}, cost:50, income:1, color:0x00ff00, level:1},
+  {type:'Atelier', position:{x:6,y:1,z:0}, cost:100, income:2, color:0xffff00, level:1},
+  {type:'Réservoir', position:{x:6,y:1,z:3}, cost:75, income:1.5, color:0x00ffff, level:1},
+];
+
+let currentBlockIndex = 0;
+let buildings = [];
+
+// Affichage bloc suivant
+function updateNextBlock(){
+  if(currentBlockIndex < predefinedBlocks.length){
+    document.getElementById('nextBlock').textContent = 'Prochain bloc: ' + predefinedBlocks[currentBlockIndex].type;
+  } else {
+    document.getElementById('nextBlock').textContent = 'Tous les blocs posés !';
+  }
+}
+
+// Poser bloc
+function placeBlock(){
+  if(currentBlockIndex >= predefinedBlocks.length) return;
+  let block = predefinedBlocks[currentBlockIndex];
+
+  if(money < block.cost){
+    alert("Pas assez d'argent !");
+    return;
+  }
+
+  money -= block.cost;
   updateMoney();
 
+  // Création bloc 3D
   let geometry = new THREE.BoxGeometry(2,2,2);
-  let material = new THREE.MeshStandardMaterial({color:color});
+  let material = new THREE.MeshStandardMaterial({color:block.color});
   let cube = new THREE.Mesh(geometry, material);
-  cube.position.set(nextX,1,nextZ);
+  cube.position.set(block.position.x,1,block.position.z);
+  cube.scale.set(0.1,0.1,0.1);
   scene.add(cube);
 
-  buildings.push({mesh:cube,type:type,level:1});
-
-  // Avancer position pour le prochain bâtiment
-  nextX += 3;
-  if(nextX>12){ nextX=0; nextZ+=3; }
-
-  // Animation simple
-  cube.scale.set(0.1,0.1,0.1);
-  let scale=0.1;
-  let anim=setInterval(()=>{
-    scale+=0.05;
-    cube.scale.set(scale,scale,scale);
-    if(scale>=1) clearInterval(anim);
+  // Animation simple de construction
+  let scale = 0.1;
+  let anim = setInterval(()=>{
+    scale += 0.05;
+    cube.scale.set(scale, scale, scale);
+    if(scale >= 1) clearInterval(anim);
   },30);
+
+  buildings.push({...block, mesh:cube});
+  currentBlockIndex++;
+  updateNextBlock();
 }
 
 // Upgrade bâtiment
 function upgrade(building){
   let upgradeCost = building.level*50;
-  if(money<upgradeCost) return alert("Pas assez d'argent !");
+  if(money < upgradeCost){
+    alert("Pas assez d'argent pour upgrader !");
+    return;
+  }
   money -= upgradeCost;
   building.level++;
+  building.income *= 1.5; // augmente revenu
   updateMoney();
-  building.mesh.scale.y +=0.5; // augmente visuellement
+
+  // Animation upgrade (tremblement)
+  let originalY = building.mesh.position.y;
+  let count = 0;
+  let anim = setInterval(()=>{
+    building.mesh.position.y = originalY + Math.sin(count*Math.PI/4)*0.2;
+    count++;
+    if(count>8){
+      building.mesh.position.y = originalY;
+      clearInterval(anim);
+    }
+  },30);
+}
+
+// Affichage argent
+function updateMoney(){
+  document.getElementById('money').textContent = Math.floor(money);
 }
 
 // Génération automatique d'argent
 function generateMoney(){
   buildings.forEach(b=>{
-    if(b.type==='dortoir') money += b.level*1;
-    if(b.type==='atelier') money += b.level*2;
-    if(b.type==='reservoir') money += b.level*1.5;
+    money += b.income;
   });
   updateMoney();
   randomEvent();
 }
-
-// Mettre à jour affichage argent
-function updateMoney(){
-  document.getElementById('money').textContent = Math.floor(money);
-}
+setInterval(generateMoney,1000);
 
 // Événements aléatoires
 function randomEvent(){
-  if(Math.random()<0.01){
+  if(Math.random()<0.01 && buildings.length>0){
     let bonus = Math.floor(Math.random()*50+10);
     money += bonus;
     updateMoney();
@@ -118,17 +155,15 @@ function randomEvent(){
   }
 }
 
-// Boucle jeu
-setInterval(generateMoney,1000);
-
+// Boucle animation
 function animate(){
   requestAnimationFrame(animate);
   renderer.render(scene,camera);
 }
 animate();
 
-// Sélection et upgrade au clic
-window.addEventListener('click',(e)=>{
+// Upgrade au clic sur bâtiment
+window.addEventListener('click', (e)=>{
   let mouse = new THREE.Vector2();
   mouse.x = (e.clientX/window.innerWidth)*2-1;
   mouse.y = -(e.clientY/window.innerHeight)*2+1;
