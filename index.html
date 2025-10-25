@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Village Tycoon 3D - Étages Correctement Placés</title>
+<title>Village Tycoon 3D</title>
 <style>
 body { margin:0; overflow:hidden; font-family:Arial; background:#87ceeb; }
 #ui { position:absolute; top:10px; left:10px; color:white; z-index:10; }
@@ -27,7 +27,6 @@ scene.background = new THREE.Color(0x87ceeb);
 
 let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.set(20,30,30);
-camera.lookAt(0,0,0);
 
 let renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -96,11 +95,11 @@ function placeFloor(){
   let mat = new THREE.MeshStandardMaterial({color:b.color});
   let cube = new THREE.Mesh(geom, mat);
 
-  // Placer étage correctement sur la hauteur actuelle
+  // Placer étage sur hauteur actuelle
   cube.position.set(b.position.x, b.currentHeight*2 + 1, b.position.z);
   scene.add(cube);
 
-  b.currentHeight++; // augmenter la hauteur du bâtiment
+  b.currentHeight++;
   buildingsPlaced.push({...b, mesh:cube});
 
   // Toit si dernier étage
@@ -125,14 +124,14 @@ function generateMoney(){
 }
 setInterval(generateMoney,1000);
 
-// Boucle animation
+// Animation
 function animate(){
   requestAnimationFrame(animate);
   renderer.render(scene,camera);
 }
 animate();
 
-// Ajouter écouteur sur bouton
+// Bouton
 document.getElementById('buildBtn').addEventListener('click', placeFloor);
 
 updateNextFloor();
