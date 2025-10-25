@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Village Tycoon 3D - Étages Corrigé</title>
+<title>Village Tycoon 3D - Étages Correctement Placés</title>
 <style>
 body { margin:0; overflow:hidden; font-family:Arial; background:#87ceeb; }
 #ui { position:absolute; top:10px; left:10px; color:white; z-index:10; }
@@ -57,15 +57,14 @@ document.getElementById('money').textContent = money;
 
 // Bâtiments
 let buildingsData = [
-  {type:'Maison', position:{x:0,z:0}, floors:3, cost:50, income:1, color:0x00ff00, roofColor:0x8B0000},
-  {type:'Ferme', position:{x:5,z:0}, floors:2, cost:75, income:2, color:0xffff00, roofColor:0xA0522D},
-  {type:'Marché', position:{x:0,z:5}, floors:3, cost:100, income:3, color:0xffa500, roofColor:0x8B4513},
-  {type:'Scierie', position:{x:5,z:5}, floors:2, cost:80, income:1.5, color:0x00ffff, roofColor:0x654321},
+  {type:'Maison', position:{x:0,z:0}, floors:3, cost:50, income:1, color:0x00ff00, roofColor:0x8B0000, currentHeight:0},
+  {type:'Ferme', position:{x:5,z:0}, floors:2, cost:75, income:2, color:0xffff00, roofColor:0xA0522D, currentHeight:0},
+  {type:'Marché', position:{x:0,z:5}, floors:3, cost:100, income:3, color:0xffa500, roofColor:0x8B4513, currentHeight:0},
+  {type:'Scierie', position:{x:5,z:5}, floors:2, cost:80, income:1.5, color:0x00ffff, roofColor:0x654321, currentHeight:0},
 ];
 
 let buildingIndex = 0;
-let currentFloor = 1;
-let buildings = [];
+let buildingsPlaced = [];
 
 // Affichage étage suivant
 function updateNextFloor(){
@@ -75,8 +74,9 @@ function updateNextFloor(){
     return;
   }
   let b = buildingsData[buildingIndex];
+  let nextFloor = b.currentHeight + 1;
   document.getElementById('nextBlock').textContent =
-    `Prochain étage: ${b.type} - Étage ${currentFloor} (${b.cost}$)`;
+    `Prochain étage: ${b.type} - Étage ${nextFloor} (${b.cost}$)`;
 }
 
 // Poser étage
@@ -88,42 +88,39 @@ function placeFloor(){
     alert("Pas assez d'argent !");
     return;
   }
-
   money -= b.cost;
   document.getElementById('money').textContent = money;
 
   // Création étage
-  let geometry = new THREE.BoxGeometry(2,2,2);
-  let material = new THREE.MeshStandardMaterial({color:b.color});
-  let cube = new THREE.Mesh(geometry, material);
-  cube.position.set(b.position.x, currentFloor*2-1, b.position.z);
+  let geom = new THREE.BoxGeometry(2,2,2);
+  let mat = new THREE.MeshStandardMaterial({color:b.color});
+  let cube = new THREE.Mesh(geom, mat);
+
+  // Placer étage correctement sur la hauteur actuelle
+  cube.position.set(b.position.x, b.currentHeight*2 + 1, b.position.z);
   scene.add(cube);
 
+  b.currentHeight++; // augmenter la hauteur du bâtiment
+  buildingsPlaced.push({...b, mesh:cube});
+
   // Toit si dernier étage
-  if(currentFloor === b.floors){
+  if(b.currentHeight === b.floors){
     let roof = new THREE.Mesh(
       new THREE.ConeGeometry(1.5,1.5,4),
       new THREE.MeshStandardMaterial({color:b.roofColor})
     );
-    roof.position.set(b.position.x, currentFloor*2+0.75, b.position.z);
+    roof.position.set(b.position.x, b.currentHeight*2 + 0.75, b.position.z);
     roof.rotation.y = Math.PI/4;
     scene.add(roof);
+    buildingIndex++; // passer au bâtiment suivant
   }
 
-  buildings.push({...b, mesh:cube, floor:currentFloor});
-
-  // Prochain étage
-  currentFloor++;
-  if(currentFloor > b.floors){
-    buildingIndex++;
-    currentFloor = 1;
-  }
   updateNextFloor();
 }
 
 // Revenu automatique
 function generateMoney(){
-  buildings.forEach(b=> money += b.income);
+  buildingsPlaced.forEach(b=> money += b.income);
   document.getElementById('money').textContent = Math.floor(money);
 }
 setInterval(generateMoney,1000);
