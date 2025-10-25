@@ -2,139 +2,163 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Village Tycoon 3D</title>
+<title>Village Tycoon 3D - GitHub Pages</title>
 <style>
-body { margin:0; overflow:hidden; font-family:Arial; background:#87ceeb; }
-#ui { position:absolute; top:10px; left:10px; color:white; z-index:10; }
+body { margin:0; overflow:hidden; font-family:Arial; background:#87ceeb; } /* ciel bleu */
+#ui { position:absolute; top:10px; left:10px; color:white; z-index:10; background:rgba(0,0,0,0.5); padding:10px; border-radius:5px;}
 #nextBlock { font-weight:bold; margin-bottom:5px; }
-button { padding:5px 10px; display:block; margin-top:5px; }
+button { padding:5px 10px; display:block; margin-top:5px; cursor:pointer; }
+#minimap { position:absolute; top:10px; right:10px; width:150px; height:150px; border:2px solid white; background:#228B22; z-index:10;} /* herbe verte */
 </style>
 </head>
 <body>
 <div id="ui">
   Argent: <span id="money">200</span><br>
-  <div id="nextBlock">Prochain étage: Maison - Étage 1 (50$)</div>
+  <div id="nextBlock"></div>
   <button id="buildBtn">Construire l'étage</button>
 </div>
+<canvas id="minimap"></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js"></script>
 
 <script>
-// --- Scène 3D ---
-let scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
+// --- Scène ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb); // ciel bleu
 
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(20,30,30);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(20,20,20);
 
-let renderer = new THREE.WebGLRenderer({antialias:true});
+const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-let controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.target.set(5,0,5);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.update();
 
-// Lumière
-let light = new THREE.DirectionalLight(0xffffff,1);
-light.position.set(50,50,50);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x555555));
+// Lumières
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const dirLight = new THREE.DirectionalLight(0xffffff,1);
+dirLight.position.set(20,30,20);
+scene.add(dirLight);
 
-// Sol
-let ground = new THREE.Mesh(
+// Sol (herbe verte)
+const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(50,50),
   new THREE.MeshStandardMaterial({color:0x228B22})
 );
 ground.rotation.x = -Math.PI/2;
 scene.add(ground);
 
-// --- Variables jeu ---
+// --- Variables ---
 let money = 200;
 document.getElementById('money').textContent = money;
 
-// Bâtiments
-let buildingsData = [
-  {type:'Maison', position:{x:0,z:0}, floors:3, cost:50, income:1, color:0x00ff00, roofColor:0x8B0000, currentHeight:0},
-  {type:'Ferme', position:{x:5,z:0}, floors:2, cost:75, income:2, color:0xffff00, roofColor:0xA0522D, currentHeight:0},
-  {type:'Marché', position:{x:0,z:5}, floors:3, cost:100, income:3, color:0xffa500, roofColor:0x8B4513, currentHeight:0},
-  {type:'Scierie', position:{x:5,z:5}, floors:2, cost:80, income:1.5, color:0x00ffff, roofColor:0x654321, currentHeight:0},
+const buildings = [
+  {type:'Maison', x:0, z:0, floors:3, cost:50, income:1, color:0x00ff00, roofColor:0x8B0000, height:0},
+  {type:'Ferme', x:5, z:0, floors:2, cost:75, income:2, color:0xffff00, roofColor:0xA0522D, height:0}
 ];
 
-let buildingIndex = 0;
-let buildingsPlaced = [];
+let currentBuilding = 0;
+const placedBlocks = [];
 
-// Affichage étage suivant
-function updateNextFloor(){
-  if(buildingIndex >= buildingsData.length){
-    document.getElementById('nextBlock').textContent = 'Tous les bâtiments construits !';
+// --- UI ---
+function updateNextBlock(){
+  if(currentBuilding >= buildings.length){
+    document.getElementById('nextBlock').textContent = "Tous les bâtiments construits !";
     document.getElementById('buildBtn').disabled = true;
     return;
   }
-  let b = buildingsData[buildingIndex];
-  let nextFloor = b.currentHeight + 1;
-  document.getElementById('nextBlock').textContent =
-    `Prochain étage: ${b.type} - Étage ${nextFloor} (${b.cost}$)`;
+  const b = buildings[currentBuilding];
+  document.getElementById('nextBlock').textContent = 
+    `Prochain étage: ${b.type} (${b.height+1}/${b.floors}) - ${b.cost}$`;
 }
 
-// Poser étage
-function placeFloor(){
-  if(buildingIndex >= buildingsData.length) return;
-  let b = buildingsData[buildingIndex];
+// --- Construction étage ---
+function buildFloor(){
+  console.log("buildFloor appelé"); // debug
+  if(currentBuilding >= buildings.length) return;
+  const b = buildings[currentBuilding];
 
   if(money < b.cost){
     alert("Pas assez d'argent !");
     return;
   }
+
   money -= b.cost;
   document.getElementById('money').textContent = money;
 
-  // Création étage
-  let geom = new THREE.BoxGeometry(2,2,2);
-  let mat = new THREE.MeshStandardMaterial({color:b.color});
-  let cube = new THREE.Mesh(geom, mat);
-
-  // Placer étage sur hauteur actuelle
-  cube.position.set(b.position.x, b.currentHeight*2 + 1, b.position.z);
+  // Bloc unique par étage
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(2,2,2),
+    new THREE.MeshStandardMaterial({color:b.color})
+  );
+  cube.position.set(b.x, b.height*2 +1, b.z);
   scene.add(cube);
+  placedBlocks.push(cube);
 
-  b.currentHeight++;
-  buildingsPlaced.push({...b, mesh:cube});
+  b.height++;
 
   // Toit si dernier étage
-  if(b.currentHeight === b.floors){
-    let roof = new THREE.Mesh(
+  if(b.height === b.floors){
+    const roof = new THREE.Mesh(
       new THREE.ConeGeometry(1.5,1.5,4),
       new THREE.MeshStandardMaterial({color:b.roofColor})
     );
-    roof.position.set(b.position.x, b.currentHeight*2 + 0.75, b.position.z);
+    roof.position.set(b.x, b.height*2 +0.75, b.z);
     roof.rotation.y = Math.PI/4;
     scene.add(roof);
-    buildingIndex++; // passer au bâtiment suivant
+    currentBuilding++;
   }
 
-  updateNextFloor();
+  updateNextBlock();
 }
 
-// Revenu automatique
-function generateMoney(){
-  buildingsPlaced.forEach(b=> money += b.income);
+// --- Revenu automatique ---
+setInterval(()=>{
+  buildings.forEach(b => money += b.height * b.income);
   document.getElementById('money').textContent = Math.floor(money);
-}
-setInterval(generateMoney,1000);
+},1000);
 
-// Animation
+// --- Animation ---
 function animate(){
   requestAnimationFrame(animate);
   renderer.render(scene,camera);
 }
 animate();
 
-// Bouton
-document.getElementById('buildBtn').addEventListener('click', placeFloor);
+// --- Mini-carte ---
+const miniCanvas = document.getElementById('minimap');
+const miniCtx = miniCanvas.getContext('2d');
 
-updateNextFloor();
+function updateMinimap(){
+  miniCtx.clearRect(0,0,150,150);
+  miniCtx.fillStyle = "#228B22"; // herbe
+  miniCtx.fillRect(0,0,150,150);
+
+  placedBlocks.forEach(b => {
+    const mx = 75 + b.position.x*5;
+    const mz = 75 + b.position.z*5;
+    miniCtx.fillStyle = "white";
+    miniCtx.fillRect(mx-1, mz-1, 2, 2);
+  });
+}
+
+// --- Bouton mobile/desktop ---
+const btn = document.getElementById('buildBtn');
+let touchHandled = false;
+
+btn.addEventListener('touchstart', (e)=>{
+  if(!touchHandled){ buildFloor(); touchHandled = true; }
+});
+btn.addEventListener('click', (e)=>{
+  if(!touchHandled){ buildFloor(); }
+  touchHandled = false;
+});
+
+// --- Initialisation ---
+updateNextBlock();
 </script>
 </body>
 </html>
